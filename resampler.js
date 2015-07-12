@@ -1,7 +1,7 @@
 /*! resampler.js v0.1 | (c) 2015 Rustam Bakeev (Nommyde) | MIT License */
 
 (function (root, factory) {
-    if (typeof define == 'function' && define.amd)
+    if (typeof define == "function" && define.amd)
         define(factory);
     else
         root.Resampler = factory();
@@ -109,11 +109,11 @@
     }
 
 
-    // for resizeCanvas
     var DEFAULT_FILTER_SCALE = 0.7;
     var DEFAULT_FILTER = Filters.lanczos3;
     var DEFAULT_LINEARIZE = true;
     var DEFAULT_SKIP_ALPHA = true;
+    var DEFAULT_SHARP = 0.3;
 
 
     function resizeCanvas(canvas, w, h, options) {
@@ -121,8 +121,8 @@
 
         var filter = options.filter || DEFAULT_FILTER;
         var filterScale = options.filterScale || DEFAULT_FILTER_SCALE;
-        var linearize = typeof options.linearize == 'undefined' ? DEFAULT_LINEARIZE : options.linearize;
-        var skipAlpha = typeof options.skipAlpha == 'undefined' ? DEFAULT_SKIP_ALPHA : options.skipAlpha;
+        var linearize = options.linearize === undefined ? DEFAULT_LINEARIZE : options.linearize;
+        var skipAlpha = options.skipAlpha === undefined ? DEFAULT_SKIP_ALPHA : options.skipAlpha;
 
         var ctx = canvas.getContext("2d");
         var srcs = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -185,6 +185,65 @@
         ctx.putImageData(dstImg, 0, 0);
     }
 
+    function reduceCanvas(canvas, w, h, sharp) {
+        sharp = sharp === undefined ? DEFAULT_SHARP : sharp;
+        var offset;
+        var w4 = 4 * w;
+        var ctx = canvas.getContext("2d");
+        var src = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+        var dstData = ctx.createImageData(w, h);
+        var dst = dstData.data;
+
+        var xratio = canvas.width / w;
+        var yratio = canvas.height / h;
+
+        var sharp_ = 1 - sharp;
+        sharp /= 2;
+
+        var r, g, b, a;
+
+        for (var i = 0; i < h; i++) {
+            for (var j = 0; j < w; j++) {
+                r = g = b = a = 0;
+
+                var xfrom = Math.floor(xratio * j);
+                var xto = Math.floor(xratio * (j + 1));
+                var yfrom = Math.floor(yratio * i);
+                var yto = Math.floor(yratio * (i + 1));
+
+                for (var y = yfrom; y < yto; y++) {
+                    for (var x = xfrom; x < xto; x++) {
+                        offset = 4 * (canvas.width * y + x);
+                        r += src[offset];
+                        g += src[offset + 1];
+                        b += src[offset + 2];
+                        a += src[offset + 3];
+                    }
+                }
+
+                offset = 4 * (w * i + j);
+                var cnt = (xto - xfrom) * (yto - yfrom);
+
+                if (i && j && sharp) {
+                    dst[offset] = (r / cnt - sharp * (dst[offset - 4] + dst[offset - w4])) / sharp_;
+                    dst[offset + 1] = (g / cnt - sharp * (dst[offset - 3] - dst[offset - w4 + 1])) / sharp_;
+                    dst[offset + 2] = (b / cnt - sharp * (dst[offset - 2] - dst[offset - w4 + 2])) / sharp_;
+                } else {
+                    dst[offset] = r / cnt;
+                    dst[offset + 1] = g / cnt;
+                    dst[offset + 2] = b / cnt;
+                }
+
+                dst[offset + 3] = a / cnt;
+            }
+        }
+
+        canvas.width = w;
+        canvas.height = h;
+        ctx.putImageData(dstData, 0, 0);
+    }
+
     return {
         createFilter: createFilter,
         createLanczosFilter: createLanczosFilter,
@@ -193,6 +252,7 @@
         resample: resample,
         linear2srgb: ltos,
         srgb2linear: stol,
-        resizeCanvas: resizeCanvas
+        resizeCanvas: resizeCanvas,
+        reduceCanvas: reduceCanvas
     };
 });
