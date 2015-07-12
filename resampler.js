@@ -98,11 +98,16 @@
         return c > 0.0031308 ? 1.055 * Math.pow(c, 1 / 2.4) - 0.055 : 12.92 * c;
     }
 
+    var LINEAR = [];
+    for (var i = 0; i < 256; i++) {
+        LINEAR.push(stol(i / 255));
+    }
+
     function linearizePixels(data) {
         var result = new Array(data.length);
 
         for (var i = 0; i < data.length; i++) {
-            result[i] = ((i + 1) % 4) ? (stol(data[i] / 255)) : data[i];
+            result[i] = ((i + 1) % 4) ? LINEAR[data[i]] : data[i];
         }
 
         return result;
@@ -186,7 +191,13 @@
     }
 
 
-
+    /**
+     * Fast canvas reduce with simple average algorithm
+     * @param canvas
+     * @param w new width
+     * @param h new height
+     * @param sharp optional, 0 <= sharp < 1, default DEFAULT_SHARP
+     */
     function reduceCanvas(canvas, w, h, sharp) {
         sharp = sharp === undefined ? DEFAULT_SHARP : sharp;
         var offset;
