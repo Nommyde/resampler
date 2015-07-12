@@ -185,6 +185,8 @@
         ctx.putImageData(dstImg, 0, 0);
     }
 
+
+
     function reduceCanvas(canvas, w, h, sharp) {
         sharp = sharp === undefined ? DEFAULT_SHARP : sharp;
         var offset;
@@ -227,8 +229,8 @@
 
                 if (i && j && sharp) {
                     dst[offset] = (r / cnt - sharp * (dst[offset - 4] + dst[offset - w4])) / sharp_;
-                    dst[offset + 1] = (g / cnt - sharp * (dst[offset - 3] - dst[offset - w4 + 1])) / sharp_;
-                    dst[offset + 2] = (b / cnt - sharp * (dst[offset - 2] - dst[offset - w4 + 2])) / sharp_;
+                    dst[offset + 1] = (g / cnt - sharp * (dst[offset - 3] + dst[offset - w4 + 1])) / sharp_;
+                    dst[offset + 2] = (b / cnt - sharp * (dst[offset - 2] + dst[offset - w4 + 2])) / sharp_;
                 } else {
                     dst[offset] = r / cnt;
                     dst[offset + 1] = g / cnt;
@@ -243,6 +245,8 @@
         canvas.height = h;
         ctx.putImageData(dstData, 0, 0);
     }
+
+
 
     return {
         createFilter: createFilter,
