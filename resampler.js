@@ -66,7 +66,7 @@
 
 
 
-    function resample(nsamples_src, nsamples_dst, get, set, filter, filterScale) {
+    function resample(nsamples_src, nsamples_dst, get, set, filter, filterScale, offset) {
         var x, to, a;
 
         var ratio = (nsamples_src - 1) / (nsamples_dst - 1);
@@ -75,7 +75,7 @@
         var r = filter.radius * filterScale;
 
         for (var i = 0; i < nsamples_dst; i++) {
-            x = ratio * i;
+            x = ratio * i + offset;
             to = Math.floor(x + r);
 
             a = 0;
@@ -128,6 +128,7 @@
         var filterScale = options.filterScale || DEFAULT_FILTER_SCALE;
         var linearize = options.linearize === undefined ? DEFAULT_LINEARIZE : options.linearize;
         var skipAlpha = options.skipAlpha === undefined ? DEFAULT_SKIP_ALPHA : options.skipAlpha;
+        var rbOffset = options.rbOffset || 0;
 
         var ctx = canvas.getContext("2d");
         var srcs = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -145,7 +146,10 @@
 
         var nchannels = skipAlpha ? 3 : 4;
 
+        var offsets = [-rbOffset, 0, rbOffset, 0];
         for (var ch = 0; ch < nchannels; ch++) {
+            var offset = offsets[ch];
+
             for (i = 0; i < canvas.height; i++) {
                 resample(canvas.width, w, function(row, channel) {
                     var offset = row * canvas.width;
@@ -163,7 +167,7 @@
                     return function(index, v) {
                         linear[row * w + index] = v;
                     };
-                }(i), filter, filterScale);
+                }(i), filter, filterScale, offset);
             }
 
             for (i = 0; i < w; i++) {
@@ -181,7 +185,7 @@
                     return function(index, v) {
                         dst[4 * (index * w + column) + channel] = linearize && channel < 3 ? 255 * ltos(v) : v;
                     };
-                }(i, ch), filter, filterScale);
+                }(i, ch), filter, filterScale, offset);
             }
         }
 
