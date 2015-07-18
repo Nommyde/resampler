@@ -1,4 +1,9 @@
-/*! resampler.js v0.1 | (c) 2015 Rustam Bakeev (Nommyde) | MIT License */
+/*!
+ * resampler.js v0.1
+ * (c) 2015 Rustam Bakeev
+ * MIT License
+ * https://github.com/Nommyde/resampler
+ */
 
 (function (root, factory) {
     if (typeof define == "function" && define.amd)
