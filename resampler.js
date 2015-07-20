@@ -124,6 +124,8 @@
     var DEFAULT_LINEARIZE = true;
     var DEFAULT_SKIP_ALPHA = true;
     var DEFAULT_SHARP = 0.3;
+    var DEFAULT_CHUNK_SIZE = 50;
+    var DEFAULT_CHUNK_TIMEOUT = 1;
 
 
     function resizeCanvas(canvas, w, h, options) {
@@ -134,6 +136,8 @@
         var linearize = options.linearize === undefined ? DEFAULT_LINEARIZE : options.linearize;
         var skipAlpha = options.skipAlpha === undefined ? DEFAULT_SKIP_ALPHA : options.skipAlpha;
         var rbOffset = options.rbOffset || 0;
+        var chunkSize = options.chunkSize || DEFAULT_CHUNK_SIZE;
+        var chunkTimeout = options.chunkTimeout || DEFAULT_CHUNK_TIMEOUT;
 
         var ctx = canvas.getContext("2d");
         var srcs = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
@@ -149,54 +153,106 @@
             for (var i = 0; i < wh; i++) dst[i * 4 + 3] = 255;
         }
 
+
+        i = 0;
+        var ch = 0;
+        var axis = 1;
         var nchannels = skipAlpha ? 3 : 4;
-
+        var nIterations = nchannels * (canvas.height + w);
+        var done = 0;
+        var cancelled = false;
         var offsets = [-rbOffset, 0, rbOffset, 0];
-        for (var ch = 0; ch < nchannels; ch++) {
-            var offset = offsets[ch];
 
-            for (i = 0; i < canvas.height; i++) {
-                resample(canvas.width, w, function(row, channel) {
-                    var offset = row * canvas.width;
+        function iterate() {
+            for (var chunk = 0; chunk < chunkSize; chunk++) {
+                var offset = offsets[ch];
 
-                    return function(index) {
-                        if (index < 0) index = -index % canvas.width;
-                        else if (index >= canvas.width) {
-                            index = (-index - 2) % canvas.width;
-                            if (index < 0) index += canvas.width;
+                if (axis) {
+                    resample(canvas.width, w, function(row, channel) {
+                        var offset = row * canvas.width;
+
+                        return function(index) {
+                            if (index < 0) index = -index % canvas.width;
+                            else if (index >= canvas.width) {
+                                index = (-index - 2) % canvas.width;
+                                if (index < 0) index += canvas.width;
+                            }
+
+                            return src[4 * (offset + index) + channel];
+                        };
+                    }(i, ch), function(row) {
+                        return function(index, v) {
+                            linear[row * w + index] = v;
+                        };
+                    }(i), filter, filterScale, offset);
+                } else {
+                    resample(canvas.height, h, function(column) {
+                        return function(index) {
+                            if (index < 0) index = -index % canvas.height;
+                            else if (index >= canvas.height) {
+                                index = (-index - 2) % canvas.height;
+                                if (index < 0) index += canvas.height;
+                            }
+
+                            return linear[index * w + column];
+                        };
+                    }(i), function(column, channel) {
+                        return function(index, v) {
+                            dst[4 * (index * w + column) + channel] = linearize && channel < 3 ? 255 * ltos(v) : v;
+                        };
+                    }(i, ch), filter, filterScale, offset);
+                }
+
+                i++;
+
+                if (axis) {
+                    if (i == canvas.height) {
+                        i = 0;
+                        axis = (axis + 1) & 1;
+                    }
+                } else {
+                    if (i == w) {
+                        i = 0;
+                        axis = (axis + 1) & 1;
+                        ch++;
+
+                        if (ch == nchannels) {
+                            canvas.width = w;
+                            canvas.height = h;
+                            ctx.putImageData(dstImg, 0, 0);
+
+                            if (typeof options.progress == "function") {
+                                options.progress(1);
+                            }
+
+                            if (typeof options.complete == "function") {
+                                setTimeout(options.complete, 0);
+                            }
+
+                            return;
                         }
+                    }
+                }
 
-                        return src[4 * (offset + index) + channel];
-                    };
-                }(i, ch), function(row) {
-                    return function(index, v) {
-                        linear[row * w + index] = v;
-                    };
-                }(i), filter, filterScale, offset);
+                done++;
             }
 
-            for (i = 0; i < w; i++) {
-                resample(canvas.height, h, function(column) {
-                    return function(index) {
-                        if (index < 0) index = -index % canvas.height;
-                        else if (index >= canvas.height) {
-                            index = (-index - 2) % canvas.height;
-                            if (index < 0) index += canvas.height;
-                        }
+            if (typeof options.progress == "function") {
+                options.progress(done / nIterations);
+            }
 
-                        return linear[index * w + column];
-                    };
-                }(i), function(column, channel) {
-                    return function(index, v) {
-                        dst[4 * (index * w + column) + channel] = linearize && channel < 3 ? 255 * ltos(v) : v;
-                    };
-                }(i, ch), filter, filterScale, offset);
+            if (!cancelled) {
+                setTimeout(iterate, chunkTimeout);
             }
         }
 
-        canvas.width = w;
-        canvas.height = h;
-        ctx.putImageData(dstImg, 0, 0);
+        setTimeout(iterate, 1);
+
+        return {
+            cancel: function() {
+                cancelled = true;
+            }
+        };
     }
 
 
