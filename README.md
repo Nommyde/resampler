@@ -1,2 +1,2 @@
-# resampler
-Resampling library for images and other data
+# JavaScript resampler
+JS resampling library for images and other data
